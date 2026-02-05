@@ -15,3 +15,12 @@ repos:
         types: [python]
         pass_filenames: false
         always_run: true
+
+-   repo: local
+    hooks:
+    -   id: pip-freeze
+        name: Update requirements.txt
+        entry: powershell -Command "pip freeze > requirements.txt"
+        language: system
+        pass_filenames: false
+        always_run: true
