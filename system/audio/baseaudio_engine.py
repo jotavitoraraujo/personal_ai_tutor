@@ -1,4 +1,5 @@
-import threading
+### --- IMPORTS --- ###
+from threading import Thread as th
 from typing import Final, Self
 
 import numpy as np
@@ -11,12 +12,14 @@ class BaseAudioEngine:
     CHANNELS: Final[int] = 1
     FORMAT: Final[int] = pyaudio.paInt16
 
+    __slots__ = ("pa", "stream", "_frames", "_is_recording", "_thread")
+
     def __init__(self: Self) -> None:
         self.pa = pyaudio.PyAudio()
         self.stream: pyaudio.Stream | None = None
         self._frames: list[bytes] = []
         self._is_recording: bool = False
-        self._thread: threading.Thread | None = None
+        self._thread: th | None = None
 
     def _recording_loop(self: Self) -> None:
         if self.stream is None:
@@ -30,6 +33,18 @@ class BaseAudioEngine:
                 self._frames.append(data)
             except OSError:
                 break
+
+    def start_capture(self: Self) -> None:
+        self._frames.clear()
+        self._is_recording = True
+        self.stream = self.pa.open(
+            format=self.FORMAT,
+            channels=self.CHANNELS,
+            rate=self.SAMPLE_RATE,
+            input=True,
+        )
+        self._thread = th(target=self._recording_loop, daemon=True)
+        self._thread.start()
 
     def stop_capture(self: Self) -> np.ndarray:
         self._is_recording = False
