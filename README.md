@@ -7,12 +7,13 @@
 ## Architectural Defense
 
 ### The Latency-Precision Paradigm
-In the domain of language learning, the cost of an incorrect correction is higher than the cost of delay. This project intentionally sacrifices real-time response (accepting latencies of 10-60 seconds) to enable the deployment of the **Whisper Large-v3** and **Llama 3.1 8B (Q6/Q8)** models within a constrained **8GB VRAM** environment (NVIDIA RTX 2060 Super). By implementing an asynchronous, message-based communication flow—similar to a voice messaging exchange—the system ensures that every phoneme and grammatical nuance is processed with maximum depth.
+In the domain of language learning, the cost of an incorrect correction is higher than the cost of delay. This project intentionally sacrifices real-time response (accepting latencies of 10-60 seconds) to enable the deployment of the **Whisper Large-v3** and **Llama 3.1 8B (Q6/Q8)** models within a constrained **8GB VRAM** environment (NVIDIA RTX 2060 Super).
 
-### Hardware Resource Management
-To maintain system stability on a single-GPU setup, the engine implements a serialized resource allocation strategy:
-* **VRAM Offloading:** Strict management of model weights between the STT (Speech-to-Text) and LLM (Large Language Model) stages to prevent CUDA out-of-memory (OOM) errors.
-* **Quantization Optimization:** Use of GGUF/K-Quantization formats to preserve the logical reasoning of the Llama model while fitting within the physical memory limits.
+### Manual Trigger (Half-Duplex) Ingestion
+To ensure hardware predictability and semantic completeness, the system utilizes an atomic ingestion model.
+* **User-Driven Capture**: Audio ingestion is triggered manually (Push-to-Talk style), avoiding VAD instability in noisy environments.
+* **Batch Processing**: Audio is captured in a dedicated thread and processed in a single batch to ensure the STT engine receives the full context of the utterance.
+* **System Dormancy**: The audio engine enters a state of total dormancy during GPU inference to release physical resources for the LLM.
 
 ---
 
@@ -22,32 +23,32 @@ To maintain system stability on a single-GPU setup, the engine implements a seri
 | :--- | :--- | :--- |
 | **STT Engine** | Faster-Whisper | Large-v3 Model (High-Fidelity) |
 | **Inference Core** | Llama 3.1 | 8B Parameters (Q6_K / Q8 Quantization) |
-| **TTS Engine** | Piper / XTTSv2 | Local neural synthesis |
+| **Audio Ingestion** | PyAudio / NumPy | 16kHz, Mono, 16-bit -> Float32 Batch |
 | **Data Persistence** | SQLite | Relational audit trail and telemetry |
-| **Orchestration** | Python 3.11+ | Asynchronous (Asyncio) and Multiprocessing |
+| **Orchestration** | Python 3.11+ | Asynchronous (Asyncio) and Threading |
 
 ---
 
 ## Data Pipeline and System Flow
 
-1.  **Signal Ingestion:** Captures raw audio via the hardware interface, utilizing a Voice Activity Detection (VAD) layer to isolate speech segments.
-2.  **Transcription:** The **Whisper Large-v3** model performs deep spectral analysis to convert audio into text, ensuring that even subtle grammatical markers (e.g., third-person 's' or past-tense 'ed') are preserved.
-3.  **Linguistic Reasoning:** The LLM acts as a senior pedagogical auditor. It evaluates the user's input against formal English standards before generating a contextual response.
-4.  **Telemetry and Logging:** All interactions, identified grammatical failures, and system performance metrics are persisted in a relational database for long-term progress analysis.
-5.  **Aural Synthesis:** The response is synthesized into a natural voice stream, providing the user with a correct phonetic model.
+1.  **Manual Ingestion**: Captures raw audio via the hardware interface in a dedicated thread to maintain a stable physical clock.
+2.  **Atomic Normalization**: Converts the raw 16-bit PCM buffer into a normalized Float32 `np.ndarray` in a single vectorized operation.
+3.  **Transcription**: The **Whisper Large-v3** model performs deep spectral analysis, ensuring that even subtle grammatical markers are preserved.
+4.  **Linguistic Reasoning**: The LLM acts as a senior pedagogical auditor, evaluating the user's input before generating a contextual response.
+5.  **Aural Synthesis**: The response is synthesized into a natural voice stream, providing the user with a correct phonetic model.
 
 ---
 
 ## Key Engineering Features
 
-* **Grammar Audit Trail:** Every interaction is cataloged and categorized by error type (Syntax, Morphology, Vocabulary), providing a data-driven view of the user's evolution.
-* **Zero-Cloud Dependency:** 100% offline operation, ensuring total data privacy and independence from external API availability or costs.
-* **Asynchronous Orchestration:** Robust management of concurrent tasks to ensure the system remains responsive even during heavy inference loads.
+* **Grammar Audit Trail**: Every interaction is cataloged and categorized by error type (Syntax, Morphology, Vocabulary), providing a data-driven view of evolution.
+* **Zero-Cloud Dependency**: 100% offline operation, ensuring total data privacy and independence from external API costs.
+* **Asynchronous Orchestration**: Robust management of concurrent tasks to ensure the system remains responsive during heavy inference loads.
 
 ---
 
 ## Requirements
 
-* **GPU:** NVIDIA RTX 2060 Super (8GB VRAM) or higher.
-* **Processor:** High-frequency multicore CPU (e.g., Ryzen 7 3800X).
-* **Environment:** Python 3.11+ with isolated virtual environment management.
+* **GPU**: NVIDIA RTX 2060 Super (8GB VRAM) or higher.
+* **Processor**: High-frequency multicore CPU (e.g., Ryzen 7 3800X).
+* **Environment**: Python 3.11+ with strict type checking (Strict Mode).
