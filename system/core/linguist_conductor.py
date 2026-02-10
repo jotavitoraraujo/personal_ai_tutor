@@ -1,4 +1,5 @@
 ### --- IMPORTS --- ###
+import asyncio
 import logging as log
 from asyncio import Queue
 from typing import Self
@@ -14,6 +15,7 @@ from system.utils.enum_state import State
 
 class LinguistConductor:
     __slots__ = (
+        "loop",
         "stt_engine",
         "state",
         "audio_engine",
@@ -21,6 +23,7 @@ class LinguistConductor:
     )
 
     def __init__(self: Self) -> None:
+        self.loop = asyncio.get_event_loop()
         self.stt_engine = STT()
         self.state = State.IDLE
         self.audio_engine = BAE()
@@ -39,7 +42,7 @@ class LinguistConductor:
         else:
             self.state = State.TRANSCRIBING
             arr_float32 = self.audio_engine.stop_capture()
-            self.audio_queue.put_nowait(arr_float32)
+            self.loop.call_soon_threadsafe(self.audio_queue.put_nowait, arr_float32)
             return
 
     async def run(self: Self) -> None:

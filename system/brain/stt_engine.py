@@ -27,7 +27,9 @@ class STTEngine:
             )
             segments: Iterable[Segment]
             _info: TInfo
-            segments, _info = self.model.transcribe(arr_float32, beam_size=5)  # type: ignore
+            segments, _info = self.model.transcribe(  # type: ignore
+                arr_float32, beam_size=5, language="en", task="transcribe"
+            )
             final_string = " ".join(segment.text for segment in segments).strip()
             del self.model
             self.model = None
