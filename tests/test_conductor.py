@@ -1,3 +1,4 @@
+### --- IMPORTS --- ###
 import asyncio
 from unittest.mock import patch
 
@@ -8,11 +9,21 @@ from system.utils.enum_state import State
 
 
 def test_conductor_logic_and_handoff() -> None:
-    with patch("system.core.linguist_conductor.BAE") as MockBAE:
+    with (
+        patch("system.core.linguist_conductor.BAE") as MockBAE,
+        patch("system.core.linguist_conductor.STT") as MockSTT,
+    ):
+        # Configuração Mock BAE
         mock_engine_instance = MockBAE.return_value
         mock_engine_instance.stop_capture.return_value = np.zeros(
             16000, dtype=np.float32
         )
+        mock_stt_instance = MockSTT.return_value
+
+        async def mock_transcribe(_: np.ndarray) -> str:
+            return "Test Transcription"
+
+        mock_stt_instance.transcribe = mock_transcribe
 
         conductor = LinguistConductor()
 
@@ -25,7 +36,6 @@ def test_conductor_logic_and_handoff() -> None:
 
         conductor.on_release()
         assert conductor.state == State.TRANSCRIBING
-
         mock_engine_instance.stop_capture.assert_called_once()
         assert conductor.audio_queue.qsize() == 1
 
@@ -37,4 +47,6 @@ def test_conductor_logic_and_handoff() -> None:
             return conductor.audio_queue.empty()
 
         is_queue_empty = asyncio.run(validate_run())
+
         assert is_queue_empty
+        assert conductor.state == State.IDLE
