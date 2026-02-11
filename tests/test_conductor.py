@@ -14,18 +14,23 @@ def test_conductor_logic_and_handoff() -> None:
     with (
         patch("system.core.linguist_conductor.BAE") as MockBAE,
         patch("system.core.linguist_conductor.STT") as MockSTT,
+        patch("system.core.linguist_conductor.LLM") as MockLLM,
     ):
-        mock_engine_instance = MockBAE.return_value
-        mock_engine_instance.stop_capture.return_value = np.zeros(
-            16000, dtype=np.float32
-        )
+        mock_audio = MockBAE.return_value
+        mock_audio.stop_capture.return_value = np.zeros(16000, dtype=np.float32)
 
-        mock_stt_instance = MockSTT.return_value
+        mock_stt = MockSTT.return_value
 
         async def mock_transcribe(_: np.ndarray) -> str:
             return "Test Transcription"
 
-        mock_stt_instance.transcribe = mock_transcribe
+        mock_stt.transcribe = mock_transcribe
+        mock_llm = MockLLM.return_value
+
+        async def mock_think(_: str) -> str:
+            return "Test Response"
+
+        mock_llm.think = mock_think
 
         async def run_async_test() -> bool:
             conductor = LinguistConductor()

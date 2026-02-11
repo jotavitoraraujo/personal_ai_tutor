@@ -1,6 +1,6 @@
 ### --- IMPORTS --- ###
 import asyncio
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import numpy as np
 
@@ -14,20 +14,17 @@ def test_full_flow_integration() -> None:
     with (
         patch("system.core.linguist_conductor.BAE") as MockBAE,
         patch("system.core.linguist_conductor.STT") as MockSTT,
+        patch("system.core.linguist_conductor.LLM") as MockLLM,
     ):
         mock_audio = MockBAE.return_value
         mock_audio.stop_capture.return_value = np.zeros(16000, dtype=np.float32)
-
         mock_stt = MockSTT.return_value
-
-        async def mock_transcribe_call(_: np.ndarray) -> str:
-            return "Test Transcription"
-
-        mock_stt.transcribe.side_effect = mock_transcribe_call
+        mock_stt.transcribe = AsyncMock(return_value="Test Transcription")
+        mock_llm = MockLLM.return_value
+        mock_llm.think = AsyncMock(return_value="Test Mentor Response")
 
         async def run_integration_logic() -> None:
             conductor = LinguistConductor()
-
             conductor.on_press()
             conductor.on_release()
             await asyncio.sleep(0)
@@ -36,7 +33,9 @@ def test_full_flow_integration() -> None:
                 await asyncio.wait_for(conductor.run(), timeout=0.2)
             except TimeoutError:
                 pass
+
             assert conductor.state == State.IDLE
             assert conductor.audio_queue.empty()
+            mock_llm.think.assert_called_once_with("Test Transcription")
 
         asyncio.run(run_integration_logic())
