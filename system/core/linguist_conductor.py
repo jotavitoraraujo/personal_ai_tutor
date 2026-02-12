@@ -2,7 +2,7 @@
 import asyncio
 import logging as log
 from asyncio import Queue
-from typing import Self
+from typing import Self, cast
 
 import numpy as np
 
@@ -11,6 +11,7 @@ from system.brain.llm_engine import LLMEngine as LLM
 
 ###
 from system.brain.stt_engine import STTEngine as STT
+from system.ui.display_manager import DisplayManager as DM
 from system.utils.enum_state import State
 
 
@@ -55,11 +56,10 @@ class LinguistConductor:
 
             if transcription:
                 self.state = State.THINKING
-                log.warning("[WARNING] I'm thinking...")
-                response = await self.llm_engine.think(transcription)
-                log.info(f"[INFO] Response: {response}")
+                DM.print_gpu_status("LLAMA 3.1: Thinking...")
+                result = await self.llm_engine.think(transcription)
+                DM.show_mentor_response(cast(str, result["text"]), result)
             else:
                 log.warning("[WARNING] Audio not understood or silence detect...")
-
+                DM.print_gpu_status("Status: IDLE (No Speech detected)")
             self.state = State.IDLE
-            log.info(f"[INFO] The system is found in: {self.state}")

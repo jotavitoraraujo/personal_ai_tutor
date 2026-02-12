@@ -17,6 +17,11 @@ class OllamaResponse(TypedDict):
     created_at: str
     message: Message
     done: bool
+    ### METRICS ###
+    total_duration: int
+    prompt_eval_count: int
+    eval_count: int
+    eval_duration: int
 
 
 class LLMEngine:
@@ -53,7 +58,7 @@ class LLMEngine:
             }
         ]
 
-    async def think(self: Self, user_input: str) -> str:
+    async def think(self: Self, user_input: str) -> dict[str, str | int]:
         log.info(f"[LLM] Input bytes received: {len(user_input.encode())} bytes.")
         self.student_profile.append({"role": "user", "content": (f"{user_input}")})
 
@@ -74,11 +79,22 @@ class LLMEngine:
                     self.student_profile.append(
                         {"role": "assistant", "content": bot_message}
                     )
-                    return bot_message
+
+                    metrics = {
+                        "text": bot_message,
+                        "prompt_tokens": data.get("prompt_eval_count", 0),
+                        "output_tokens": data.get("eval_count", 0),
+                        "total_time_ms": data.get("total_duration", 0) // 1_000_000,
+                    }
+                    return metrics
                 else:
                     raise Exception(
                         f"Server returned ::: Status Code: {response.status_code}"
                     )
             except Exception as e:
                 log.error(f"[ERROR] ::: Type: {type(e).__name__} | Details: {str(e)}")
-                return "I'm sorry, my brain is cooling down."
+                return {
+                    "text": "I'm sorry, my brain is cooling down.",
+                    "prompt_tokens": 0,
+                    "output_tokens": 0,
+                }

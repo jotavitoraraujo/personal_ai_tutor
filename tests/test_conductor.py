@@ -27,8 +27,13 @@ def test_conductor_logic_and_handoff() -> None:
         mock_stt.transcribe = mock_transcribe
         mock_llm = MockLLM.return_value
 
-        async def mock_think(_: str) -> str:
-            return "Test Response"
+        async def mock_think(_: str) -> dict[str, str | int]:
+            return {
+                "text": "Test Response",
+                "prompt_tokens": 0,
+                "output_tokens": 0,
+                "total_time_ms": 0,
+            }
 
         mock_llm.think = mock_think
 

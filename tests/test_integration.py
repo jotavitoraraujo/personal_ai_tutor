@@ -21,7 +21,14 @@ def test_full_flow_integration() -> None:
         mock_stt = MockSTT.return_value
         mock_stt.transcribe = AsyncMock(return_value="Test Transcription")
         mock_llm = MockLLM.return_value
-        mock_llm.think = AsyncMock(return_value="Test Mentor Response")
+        mock_llm.think = AsyncMock(
+            return_value={
+                "text": "Test Response",
+                "prompt_tokens": 0,
+                "output_tokens": 0,
+                "total_time_ms": 0,
+            }
+        )
 
         async def run_integration_logic() -> None:
             conductor = LinguistConductor()

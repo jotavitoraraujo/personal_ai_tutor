@@ -12,12 +12,14 @@ from system.brain.llm_engine import LLMEngine
 
 class MockResponse:
     def __init__(
-        self: Self, json_data: dict[str, str | dict[str, str] | bool], status_code: int
+        self: Self,
+        json_data: dict[str, str | dict[str, str] | bool | int],
+        status_code: int,
     ) -> None:
         self._json_data = json_data
         self.status_code = status_code
 
-    def json(self: Self) -> dict[str, str | dict[str, str] | bool]:
+    def json(self: Self) -> dict[str, str | dict[str, str] | bool | int]:
         return self._json_data
 
 
@@ -27,13 +29,17 @@ def test_think_success() -> None:
         "model": "llama3.1:8b-instruct-q6_K",
         "message": {"role": "assistant", "content": "Keep practicing, Joao!"},
         "done": True,
+        "prompt_eval_count": 10,
+        "eval_count": 20,
+        "total_duration": 1000000000,
     }
 
     with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
         mock_post.return_value = MockResponse(mock_data, 200)
-        result = asyncio.run(engine.think("Hi, I am installing a package."))
+        result = asyncio.run(engine.think("Hi"))
 
-        assert result == "Keep practicing, Joao!"
+        assert result["text"] == "Keep practicing, Joao!"
+        assert result["prompt_tokens"] == 10
         assert len(engine.student_profile) == 3
 
 
@@ -45,7 +51,7 @@ def test_think_malformed_json() -> None:
         mock_post.return_value = MockResponse(mock_data, 200)  # type: ignore
         result = asyncio.run(engine.think("Testing error handling."))
 
-        assert result == "I'm sorry, my brain is cooling down."
+        assert result["text"] == "I'm sorry, my brain is cooling down."
         assert len(engine.student_profile) == 2
 
 
@@ -56,7 +62,7 @@ def test_think_server_error() -> None:
         mock_post.return_value = MockResponse({}, 500)
         result = asyncio.run(engine.think("Are you there?"))
 
-        assert result == "I'm sorry, my brain is cooling down."
+        assert result["text"] == "I'm sorry, my brain is cooling down."
         assert len(engine.student_profile) == 2
 
 
@@ -66,5 +72,5 @@ def test_think_timeout() -> None:
     with patch("httpx.AsyncClient.post", side_effect=httpx.ReadTimeout("Timeout")):
         result = asyncio.run(engine.think("This might take too long..."))
 
-        assert result == "I'm sorry, my brain is cooling down."
+        assert result["text"] == "I'm sorry, my brain is cooling down."
         assert len(engine.student_profile) == 2
