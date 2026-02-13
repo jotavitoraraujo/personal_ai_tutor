@@ -4,10 +4,6 @@
         "source.fixAll.ruff": "always",
         "source.organizeImports.ruff": "always"
     },
-    "editor.rulers": [
-        88,
-        100
-    ],
     "editor.minimap.enabled": false,
     "editor.renderWhitespace": "all",
     "files.autoSave": "onFocusChange"
