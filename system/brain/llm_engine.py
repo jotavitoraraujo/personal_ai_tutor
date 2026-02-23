@@ -25,48 +25,79 @@ class OllamaResponse(TypedDict):
 
 
 class LLMEngine:
-    __slots__ = ("endpoint", "model", "student_profile")
+    __slots__ = ("endpoint", "model", "messages", "slp_payload")
 
     def __init__(self: Self) -> None:
         self.endpoint = "http://localhost:11434/api/chat"
         self.model = "llama3.1:8b-instruct-q6_K"
-        self.student_profile: list[dict[str, str]] = [
+        self.messages: list[dict[str, str]] = []
+        self.slp_payload: list[dict[str, str]] = [
             {
+                "stage": "1_Identity",
                 "role": "system",
                 "content": (
-                    """
-                    SYSTEM ROLE: Elite Polymath English Mentor.
-                    CORE LOGIC: Architectural Defense (Dialectic Challenge).
-
-                    MANDATORY RESPONSE STRUCTURE:
-                    1. [FEEDBACK & DEBUG] (In PT-BR):
-                    - Review user's grammar/vocab/phonetics.
-                    - Provide IPA + 'sounds-like' tips for difficult words.
-                    - Explain WHY it was wrong or how to improve.
-
-                    2. [DIALECTIC DEBATE] (In EN):
-                    - Counter-argument or probe the user's logic on the topic.
-                    - Use high-level vocabulary (Krashen i+1).
-
-                    3. [FINAL CHALLENGE] (In EN):
-                    - A single, incisive question to force complex output (Swain's Output).
-
-                    CONSTRAINTS: 
-                    - Never skip the PT-BR section. 
-                    - Never be purely supportive; challenge every assumption.
-                    - No software engineering silos.
-                    """
+                    "IDENTITY LAYER: You are the 'Elite Polymath English Mentor'. "
+                    "Apply the 'Architectural Defense' dialectic. "
+                    "Never be purely supportive; challenge assumptions rigorously. "
+                    "RESPONSE RULE: Reply ONLY with 'ACK_ID'."
                 ),
-            }
+                "expected_ack": "ACK_ID",
+            },
+            {
+                "stage": "2_Logic",
+                "role": "system",
+                "content": (
+                    "LOGIC LAYER: Activate SLA frameworks (Krashen i+1, Swain Output, Vygotsky).Force complex sentence production and scaffold logically.RESPONSE RULE: Reply ONLY with 'ACK_LOGIC'."
+                ),
+                "expected_ack": "ACK_LOGIC",
+            },
+            {
+                "stage": "3_Constraints",
+                "role": "system",
+                "content": (
+                    "CONSTRAINTS LAYER: Enforce Bilingual Protocol. "
+                    "Feedback/Grammar/IPA MUST be in PT-BR. Debates MUST be in EN. "
+                    "Always follow the Mandatory Output Schema. "
+                    "RESPONSE RULE: Reply ONLY with 'ACK_CONSTRAINTS'."
+                ),
+                "expected_ack": "ACK_CONSTRAINTS",
+            },
         ]
+
+    async def initialize_layered_mentor(self: Self) -> bool:
+        async with httpx.AsyncClient() as client:
+            for layer in self.slp_payload:
+                log.info(f"[SYSTEM] Injecting {layer['stage']}...")
+                self.messages.append({"role": layer["role"], "content": layer["content"]})
+                payload = {"model": self.model, "messages": self.messages, "stream": False, "options": {"num_ctx": 5600}, "keep_alive": 0}
+
+                try:
+                    response = await client.post(self.endpoint, json=payload, timeout=90.0)
+                    response.raise_for_status()
+                    data = cast(OllamaResponse, response.json())
+                    bot_message: str = data["message"]["content"]
+
+                    if layer["expected_ack"] not in bot_message:
+                        log.error(f"[ERROR] Fail the handshake in {layer['stage']}. Response: {bot_message}")
+                        self.messages.clear()
+                        return False
+
+                    log.info(f"[SYSTEM] {layer['stage']} Validated with Sucess.")
+
+                except Exception as e:
+                    log.error(f"[ERROR] Exception during the injecting SLP: {str(e)} ")
+                    self.messages.clear()
+                    return False
+        log.info("[SYSTEM] Elite Polymath English Mentor initialized.")
+        return True
 
     async def think(self: Self, user_input: str) -> dict[str, str | int]:
         log.info(f"[LLM] Input bytes received: {len(user_input.encode())} bytes.")
-        self.student_profile.append({"role": "user", "content": (f"{user_input}")})
+        self.messages.append({"role": "user", "content": (f"{user_input}")})
 
         payload = {
             "model": self.model,
-            "messages": self.student_profile,
+            "messages": self.messages,
             "stream": False,
             "options": {"num_ctx": 5600},
             "keep_alive": 0,
@@ -78,7 +109,7 @@ class LLMEngine:
                 if response.status_code == 200:
                     data = cast(OllamaResponse, response.json())
                     bot_message: str = data["message"]["content"]
-                    self.student_profile.append({"role": "assistant", "content": bot_message})
+                    self.messages.append({"role": "assistant", "content": bot_message})
 
                     metrics = {
                         "text": bot_message,

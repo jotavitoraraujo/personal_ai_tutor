@@ -50,6 +50,14 @@ class LinguistConductor:
             return
 
     async def run(self: Self) -> None:
+        log.info("[SYSTEM] Initialize bootstrapping SLP... ")
+        is_ready = await self.llm_engine.initialize_layered_mentor()
+        if not is_ready:
+            log.critical("[CRITICAL] Catastrophic failure while injecting the Mentor Persona. Application terminated.")
+            return
+        log.info("[CONTROL] Ready! Hold 'F8' to talk.")
+        DM.print_gpu_status("Status: IDLE (Mentor Calibrated)")
+
         while True:
             payload = await self.audio_queue.get()
             transcription = await self.stt_engine.transcribe(payload)

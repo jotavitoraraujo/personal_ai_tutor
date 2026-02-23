@@ -22,6 +22,10 @@ class MockResponse:
     def json(self: Self) -> dict[str, str | dict[str, str] | bool | int]:
         return self._json_data
 
+    def raise_for_status(self: Self) -> None:
+        if self.status_code != 200:
+            raise httpx.HTTPStatusError("Mocked Error", request=None, response=self)  # type: ignore
+
 
 def test_think_success() -> None:
     engine = LLMEngine()
@@ -40,7 +44,7 @@ def test_think_success() -> None:
 
         assert result["text"] == "Keep practicing, Joao!"
         assert result["prompt_tokens"] == 10
-        assert len(engine.student_profile) == 3
+        assert len(engine.messages) == 2
 
 
 def test_think_malformed_json() -> None:
@@ -52,7 +56,7 @@ def test_think_malformed_json() -> None:
         result = asyncio.run(engine.think("Testing error handling."))
 
         assert result["text"] == "I'm sorry, my brain is cooling down."
-        assert len(engine.student_profile) == 2
+        assert len(engine.messages) == 1
 
 
 def test_think_server_error() -> None:
@@ -63,7 +67,7 @@ def test_think_server_error() -> None:
         result = asyncio.run(engine.think("Are you there?"))
 
         assert result["text"] == "I'm sorry, my brain is cooling down."
-        assert len(engine.student_profile) == 2
+        assert len(engine.messages) == 1
 
 
 def test_think_timeout() -> None:
@@ -73,4 +77,30 @@ def test_think_timeout() -> None:
         result = asyncio.run(engine.think("This might take too long..."))
 
         assert result["text"] == "I'm sorry, my brain is cooling down."
-        assert len(engine.student_profile) == 2
+        assert len(engine.messages) == 1
+
+
+def test_initialize_layered_mentor_success() -> None:
+    engine = LLMEngine()
+    mock_data = {
+        "message": {"content": "ACK_ID ACK_LOGIC ACK_CONSTRAINTS"},
+    }
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = MockResponse(mock_data, 200)  # type: ignore
+        result = asyncio.run(engine.initialize_layered_mentor())
+
+        assert result is True
+        assert len(engine.messages) == 3
+
+
+def test_initialize_layered_mentor_failure() -> None:
+    engine = LLMEngine()
+    mock_data = {
+        "message": {"content": "Hello! I am a friendly AI."},
+    }
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = MockResponse(mock_data, 200)  # type: ignore
+        result = asyncio.run(engine.initialize_layered_mentor())
+
+        assert result is False
+        assert len(engine.messages) == 0

@@ -29,6 +29,7 @@ def test_full_flow_integration() -> None:
                 "total_time_ms": 0,
             }
         )
+        mock_llm.initialize_layered_mentor = AsyncMock(return_value=True)
 
         async def run_integration_logic() -> None:
             conductor = LinguistConductor()
@@ -44,5 +45,6 @@ def test_full_flow_integration() -> None:
             assert conductor.state == State.IDLE
             assert conductor.audio_queue.empty()
             mock_llm.think.assert_called_once_with("Test Transcription")
+            mock_llm.initialize_layered_mentor.assert_called_once()
 
         asyncio.run(run_integration_logic())

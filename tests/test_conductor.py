@@ -35,7 +35,11 @@ def test_conductor_logic_and_handoff() -> None:
                 "total_time_ms": 0,
             }
 
+        async def mock_initialize() -> bool:
+            return True
+
         mock_llm.think = mock_think
+        mock_llm.initialize_layered_mentor = mock_initialize
 
         async def run_async_test() -> bool:
             conductor = LinguistConductor()
