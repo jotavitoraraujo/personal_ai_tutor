@@ -34,7 +34,7 @@ class LLMEngine:
         self.slp_payload: list[dict[str, str]] = [
             {
                 "stage": "1_Identity",
-                "role": "system",
+                "role": "user",
                 "content": (
                     "IDENTITY LAYER: You are the 'Elite Polymath English Mentor'. "
                     "Apply the 'Architectural Defense' dialectic. "
@@ -45,7 +45,7 @@ class LLMEngine:
             },
             {
                 "stage": "2_Logic",
-                "role": "system",
+                "role": "user",
                 "content": (
                     "LOGIC LAYER: Activate SLA frameworks (Krashen i+1, Swain Output, Vygotsky).Force complex sentence production and scaffold logically.RESPONSE RULE: Reply ONLY with 'ACK_LOGIC'."
                 ),
@@ -53,7 +53,7 @@ class LLMEngine:
             },
             {
                 "stage": "3_Constraints",
-                "role": "system",
+                "role": "user",
                 "content": (
                     "CONSTRAINTS LAYER: Enforce Bilingual Protocol. "
                     "Feedback/Grammar/IPA MUST be in PT-BR. Debates MUST be in EN. "
@@ -83,6 +83,7 @@ class LLMEngine:
                         return False
 
                     log.info(f"[SYSTEM] {layer['stage']} Validated with Sucess.")
+                    self.messages.append({"role": "assistant", "content": bot_message})
 
                 except Exception as e:
                     log.error(f"[ERROR] Exception during the injecting SLP: {str(e)} ")

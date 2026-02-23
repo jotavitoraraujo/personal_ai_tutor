@@ -90,7 +90,7 @@ def test_initialize_layered_mentor_success() -> None:
         result = asyncio.run(engine.initialize_layered_mentor())
 
         assert result is True
-        assert len(engine.messages) == 3
+        assert len(engine.messages) == 6
 
 
 def test_initialize_layered_mentor_failure() -> None:
