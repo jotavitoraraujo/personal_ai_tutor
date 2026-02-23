@@ -66,6 +66,7 @@ class LinguistConductor:
                 self.state = State.THINKING
                 DM.print_gpu_status("LLAMA 3.1: Thinking...")
                 result = await self.llm_engine.think(transcription)
+                DM.show_user_transcription(transcription)
                 DM.show_mentor_response(cast(str, result["text"]), result)
             else:
                 log.warning("[WARNING] Audio not understood or silence detect...")
