@@ -55,12 +55,7 @@ class DisplayManager:
             filled = int(round(bar_length * used / total))
             bar = "█" * filled + "░" * (bar_length - filled)
 
-            print(
-                f"{Style.YELLOW}[GPU]{Style.RESET}"
-                f"{Style.BOLD}{gpu['name']}{Style.RESET}"
-                f"{gpu['used']:.1f}/{gpu['total']:.1f} GB | {bar} | "
-                f"{Style.CYAN}{action_msg}{Style.RESET}"
-            )
+            print(f"{Style.YELLOW}[GPU]{Style.RESET}{Style.BOLD}{gpu['name']}{Style.RESET}{gpu['used']:.1f}/{gpu['total']:.1f} GB | {bar} | {Style.CYAN}{action_msg}{Style.RESET}")
 
     @staticmethod
     def show_mentor_response(response: str, metrics: dict[str, str | int]) -> None:
@@ -68,7 +63,7 @@ class DisplayManager:
         print(f"{Style.BOLD}{response}{Style.RESET}")
         print(f"{Style.CYAN}══════════════{Style.RESET}")
         print(
-            f"""{Style.YELLOW}[METRICS]{Style.RESET} 
+            f"""\n{Style.YELLOW}[METRICS]{Style.RESET} 
             Prompt: {metrics["prompt_tokens"]} tks | "
             Output: {metrics["output_tokens"]} tks | 
             Latency: {metrics["total_time_ms"]}ms"""
@@ -78,3 +73,9 @@ class DisplayManager:
             f"""\n{Style.GREEN}[CONTROL]{Style.RESET} 
             {Style.BOLD}Hold 'F8' to talk.{Style.RESET}"""
         )
+
+    @staticmethod
+    def show_user_transcription(text: str) -> None:
+        print(f"\n{Style.BOLD}{Style.RED}═══ USER ═══{Style.RESET}")
+        print(f"{Style.BOLD}{text}{Style.RESET}")
+        print(f"{Style.RED}════════════{Style.RESET}")
