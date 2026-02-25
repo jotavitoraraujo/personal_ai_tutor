@@ -13,22 +13,25 @@ from torch import cuda
 
 
 class STTEngine:
-    __slots__ = ("model", "device", "compute_type")
+    __slots__ = ("model", "device", "compute_type", "initial_prompt")
 
     def __init__(self: Self) -> None:
         self.model = None
         self.device = "cuda"
         self.compute_type = "float16"
+        self.initial_prompt = (
+            "This is a raw, literal transcription for an English learner. "
+            "Transcribe exactly what is heard, including every grammatical mistake, "
+            "wrong word, and stutter. Do not autocorrect or improve the text."
+        )
 
     async def transcribe(self: Self, arr_float32: np.ndarray) -> str | None:
         if self.model is None:
-            self.model = WhisperModel(
-                "large-v3", device=self.device, compute_type=self.compute_type
-            )
+            self.model = WhisperModel("large-v3", device=self.device, compute_type=self.compute_type)
             segments: Iterable[Segment]
             _info: TInfo
             segments, _info = self.model.transcribe(  # type: ignore
-                arr_float32, beam_size=5, language="en", task="transcribe"
+                arr_float32, beam_size=1, language="en", task="transcribe", initial_prompt=self.initial_prompt
             )
             final_string = " ".join(segment.text for segment in segments).strip()
             del self.model
