@@ -60,16 +60,19 @@ class LLMEngine:
                 "stage": "3_Constraints",
                 "role": "user",
                 "content": (
-                    "CONSTRAINTS LAYER: Enforce Bilingual Protocol. "
-                    "Feedback/Grammar/IPA MUST be in PT-BR. Debates MUST be in EN. "
-                    "Always follow the Mandatory Output Schema. "
-                    "RESPONSE RULE: Reply ONLY with 'ACK_CONSTRAINTS'."
+                    "CONSTRAINTS LAYER: Strict Bilingual Separation Protocol. "
+                    "1. FIELD ISOLATION: The key 'conversation_response' MUST ALWAYS be in English. Under no circumstances should this field contain Portuguese. "
+                    "Even if the user makes mistakes, you maintain the English immersion."
+                    "2. FEEDBACK ISOLATION: The keys 'corrections', 'pedagogical_tip', and 'proficiency_assessment' MUST ALWAYS be in Portuguese (PT-BR). "
+                    "This is the only place where Portuguese is permitted."
+                    "3. LOGICAL AUDIT: If the user speaks English, do NOT treat it as 'broken Portuguese'. Your pedagogical audit must evaluate the user's English proficiency only. "
+                    "RESPONSE RULE: To confirm these rigid boundaries, reply ONLY with 'ACK_CONSTRAINTS'."
                 ),
                 "expected_ack": "ACK_CONSTRAINTS",
             },
             {
                 "stage": "4_Formatting",
-                "role": "system",
+                "role": "user",
                 "content": (
                     "FORMATTING LAYER: You are a JSON generator. "
                     "Every response MUST be a valid JSON object. "
