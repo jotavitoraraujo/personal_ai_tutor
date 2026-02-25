@@ -2,7 +2,7 @@
 import asyncio
 import logging as log
 from asyncio import Queue
-from typing import Self
+from typing import Self, cast
 
 import numpy as np
 
@@ -12,6 +12,7 @@ from system.brain.llm_engine import LLMEngine as LLM
 ###
 from system.brain.stt_engine import STTEngine as STT
 from system.ui.display_manager import DisplayManager as DM
+from system.ui.display_manager import MentorPayload
 from system.utils.enum_state import State
 
 
@@ -71,7 +72,7 @@ class LinguistConductor:
                     DM.show_user_transcription(transcription)
 
                     result = await self.llm_engine.think(transcription)
-                    structured_data = result["structured_data"]
+                    structured_data = cast(MentorPayload, result["structured_data"])
                     DM.show_mentor_response(response=structured_data, metrics=result)
                     self.state = State.IDLE
                 else:

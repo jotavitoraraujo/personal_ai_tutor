@@ -1,4 +1,5 @@
 ### --- IMPORTS --- ###
+import logging as log
 from typing import Any, Self, TypedDict, cast
 
 
@@ -9,6 +10,20 @@ class Style:
     RED = "\033[91m"
     BOLD = "\033[1m"
     RESET = "\033[0m"
+
+
+class Correction(TypedDict):
+    original: str
+    improved: str
+    reason: str
+
+
+class MentorPayload(TypedDict):
+    conversation_response: str
+    accuracy_score: int
+    corrections: list[Correction]
+    pedagogical_tip: str
+    proficiency_assessment: str
 
 
 class GPUTelemetry(TypedDict):
@@ -58,21 +73,34 @@ class DisplayManager:
             print(f"{Style.YELLOW}[GPU]{Style.RESET}{Style.BOLD}{gpu['name']}{Style.RESET}{gpu['used']:.1f}/{gpu['total']:.1f} GB | {bar} | {Style.CYAN}{action_msg}{Style.RESET}")
 
     @staticmethod
-    def show_mentor_response(response: str, metrics: dict[str, str | int]) -> None:
-        print(f"\n{Style.BOLD}{Style.CYAN}═══ MENTOR ═══{Style.RESET}")
-        print(f"{Style.BOLD}{response}{Style.RESET}")
-        print(f"{Style.CYAN}══════════════{Style.RESET}")
-        print(
-            f"""\n{Style.YELLOW}[METRICS]{Style.RESET} 
-            Prompt: {metrics["prompt_tokens"]} tks | "
-            Output: {metrics["output_tokens"]} tks | 
-            Latency: {metrics["total_time_ms"]}ms"""
-        )
+    def show_mentor_response(response: MentorPayload, metrics: dict[str, Any]) -> None:
+        try:
+            print(f"\n{Style.BOLD}{Style.CYAN}═══ MENTOR ═══{Style.RESET}")
+            print(f"{Style.BOLD}{response.get('conversation_response', 'No message content.')}{Style.RESET}")
 
-        print(
-            f"""\n{Style.GREEN}[CONTROL]{Style.RESET} 
-            {Style.BOLD}Hold 'F8' to talk.{Style.RESET}"""
-        )
+            score = response.get("accuracy_score", 0)
+            level = response.get("proficiency_assessment", "N/A")
+            print(f"\n{Style.GREEN}Accuracy: {score}% | Level: {level}{Style.RESET}")
+
+            corrections = response.get("corrections", [])
+            if corrections:
+                print(f"\n{Style.YELLOW}CORRECTIONS:{Style.RESET}")
+                for corr in corrections:
+                    print(f"  • {Style.RED}{corr.get('original')}{Style.RESET} -> {Style.GREEN}{corr.get('improved')}{Style.RESET}")
+                    print(f"    {Style.CYAN}Reason: {corr.get('reason')}{Style.RESET}")
+
+            if response.get("pedagogical_tip"):
+                print(f"\n{Style.BOLD}Tip:{Style.RESET} {response.get('pedagogical_tip')}")
+
+            print(f"{Style.CYAN}══════════════{Style.RESET}")
+
+            print(f"{Style.YELLOW}[METRICS]{Style.RESET} Prompt: {metrics.get('prompt_tokens', 0)} tks | Output: {metrics.get('output_tokens', 0)} tks | Latency: {metrics.get('total_time_ms', 0)}ms")
+
+            print(f"\n{Style.GREEN}[CONTROL]{Style.RESET} {Style.BOLD}Hold 'F8' to talk.{Style.RESET}")
+
+        except Exception as e:
+            log.error(f"[DM ERROR] Critical failure during rendering: {str(e)}")
+            print(f"\n{Style.RED}[SYSTEM ERROR] Could not render full mentor card.{Style.RESET}")
 
     @staticmethod
     def show_user_transcription(text: str) -> None:
