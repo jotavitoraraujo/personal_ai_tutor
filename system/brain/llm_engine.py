@@ -139,10 +139,10 @@ class LLMEngine:
                     try:
                         json_match = re.search(r"\{.*}", raw_content, re.DOTALL)
                         if json_match:
-                            parsed_data = json.loads(json_match.group())
+                            parsed_data = cast(dict[str, Any], json.loads(json_match.group()))
                         else:
                             parsed_data = self._generate_fallback(raw_content)
-                    except json.JSONDecodeError:
+                    except (json.JSONDecodeError, AttributeError):
                         parsed_data = self._generate_fallback(raw_content)
 
                     self.messages.append({"role": "assistant", "content": raw_content})

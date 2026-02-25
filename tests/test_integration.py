@@ -1,50 +1,38 @@
-### --- IMPORTS --- ###
 import asyncio
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import numpy as np
 
 from system.core.linguist_conductor import LinguistConductor
-from system.utils.enum_state import State
-
-###
 
 
-def test_full_flow_integration() -> None:
+def test_system_integration_contract() -> None:
     with (
-        patch("system.core.linguist_conductor.BAE") as MockBAE,
-        patch("system.core.linguist_conductor.STT") as MockSTT,
-        patch("system.core.linguist_conductor.LLM") as MockLLM,
+        patch("system.core.linguist_conductor.BAE") as _mock_bae,
+        patch("system.core.linguist_conductor.STT") as mock_stt,
+        patch("system.core.linguist_conductor.LLM") as mock_llm,
+        patch("system.core.linguist_conductor.DM") as mock_dm,
     ):
-        mock_audio = MockBAE.return_value
-        mock_audio.stop_capture.return_value = np.zeros(16000, dtype=np.float32)
-        mock_stt = MockSTT.return_value
-        mock_stt.transcribe = AsyncMock(return_value="Test Transcription")
-        mock_llm = MockLLM.return_value
-        mock_llm.think = AsyncMock(
-            return_value={
-                "text": "Test Response",
-                "prompt_tokens": 0,
-                "output_tokens": 0,
-                "total_time_ms": 0,
-            }
-        )
-        mock_llm.initialize_layered_mentor = AsyncMock(return_value=True)
+        mock_stt.return_value.transcribe = AsyncMock(return_value="Valid transcription")
+        mock_llm.return_value.initialize_layered_mentor = AsyncMock(return_value=True)
 
-        async def run_integration_logic() -> None:
-            conductor = LinguistConductor()
-            conductor.on_press()
-            conductor.on_release()
-            await asyncio.sleep(0)
+        structured_payload: dict[str, Any] = {
+            "structured_data": {"conversation_response": "Integration Success", "accuracy_score": 95, "corrections": [], "pedagogical_tip": "Perfect", "proficiency_assessment": "B1"},
+            "prompt_tokens": 50,
+            "output_tokens": 50,
+            "total_time_ms": 500,
+        }
+        mock_llm.return_value.think = AsyncMock(return_value=structured_payload)
 
-            try:
-                await asyncio.wait_for(conductor.run(), timeout=0.2)
-            except TimeoutError:
-                pass
+        async def run_integration() -> None:
+            conductor: LinguistConductor = LinguistConductor()
+            conductor.audio_queue.put_nowait(np.zeros(1024, dtype=np.float32))
 
-            assert conductor.state == State.IDLE
-            assert conductor.audio_queue.empty()
-            mock_llm.think.assert_called_once_with("Test Transcription")
-            mock_llm.initialize_layered_mentor.assert_called_once()
+            task: asyncio.Task[None] = asyncio.create_task(conductor.run())
+            await asyncio.sleep(0.1)
+            task.cancel()
 
-        asyncio.run(run_integration_logic())
+            mock_dm.show_mentor_response.assert_called_with(response=structured_payload["structured_data"], metrics=structured_payload)
+
+        asyncio.run(run_integration())

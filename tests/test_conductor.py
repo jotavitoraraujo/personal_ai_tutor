@@ -1,62 +1,83 @@
-### --- IMPORTS --- ###
 import asyncio
-from unittest.mock import patch
+from typing import Any, Self
+from unittest.mock import AsyncMock, patch
 
 import numpy as np
 
 from system.core.linguist_conductor import LinguistConductor
 from system.utils.enum_state import State
 
-###
+
+class MockResponse:
+    def __init__(self: Self) -> None:
+        self.structured_result: dict[str, Any] = {
+            "structured_data": {"conversation_response": "Test response", "accuracy_score": 100, "corrections": [], "pedagogical_tip": "None", "proficiency_assessment": "A1"},
+            "prompt_tokens": 10,
+            "output_tokens": 10,
+            "total_time_ms": 100,
+        }
 
 
-def test_conductor_logic_and_handoff() -> None:
-    with (
-        patch("system.core.linguist_conductor.BAE") as MockBAE,
-        patch("system.core.linguist_conductor.STT") as MockSTT,
-        patch("system.core.linguist_conductor.LLM") as MockLLM,
-    ):
-        mock_audio = MockBAE.return_value
-        mock_audio.stop_capture.return_value = np.zeros(16000, dtype=np.float32)
+def test_conductor_success_flow() -> None:
+    async def run_test() -> None:
+        with (
+            patch("system.core.linguist_conductor.BAE") as _mock_bae,
+            patch("system.core.linguist_conductor.STT") as mock_stt,
+            patch("system.core.linguist_conductor.LLM") as mock_llm,
+            patch("system.ui.display_manager.DisplayManager.show_mentor_response") as mock_dm,
+            patch("system.ui.display_manager.DisplayManager.print_gpu_status"),
+            patch("system.ui.display_manager.DisplayManager.show_user_transcription"),
+        ):
+            conductor: LinguistConductor = LinguistConductor()
+            mock_llm.return_value.initialize_layered_mentor = AsyncMock(return_value=True)
+            mock_stt.return_value.transcribe = AsyncMock(return_value="Hello world")
+            mock_llm.return_value.think = AsyncMock(return_value=MockResponse().structured_result)
 
-        mock_stt = MockSTT.return_value
-
-        async def mock_transcribe(_: np.ndarray) -> str:
-            return "Test Transcription"
-
-        mock_stt.transcribe = mock_transcribe
-        mock_llm = MockLLM.return_value
-
-        async def mock_think(_: str) -> dict[str, str | int]:
-            return {
-                "text": "Test Response",
-                "prompt_tokens": 0,
-                "output_tokens": 0,
-                "total_time_ms": 0,
-            }
-
-        async def mock_initialize() -> bool:
-            return True
-
-        mock_llm.think = mock_think
-        mock_llm.initialize_layered_mentor = mock_initialize
-
-        async def run_async_test() -> bool:
-            conductor = LinguistConductor()
-
-            assert conductor.state == State.IDLE
+            task: asyncio.Task[None] = asyncio.create_task(conductor.run())
+            await asyncio.sleep(0.05)
 
             conductor.on_press()
             conductor.on_release()
-            await asyncio.sleep(0)
 
-            assert conductor.audio_queue.qsize() == 1
-            assert conductor.state == State.TRANSCRIBING
+            await asyncio.sleep(0.1)
+            task.cancel()
+
             try:
-                await asyncio.wait_for(conductor.run(), timeout=0.1)
-            except TimeoutError:
+                await task
+            except asyncio.CancelledError:
                 pass
 
-            return conductor.audio_queue.empty() and conductor.state == State.IDLE
+            assert conductor.state == State.IDLE
+            mock_dm.assert_called_once()
 
-        assert asyncio.run(run_async_test())
+    asyncio.run(run_test())
+
+
+def test_conductor_transcription_silence() -> None:
+    async def run_test() -> None:
+        with (
+            patch("system.core.linguist_conductor.BAE"),
+            patch("system.core.linguist_conductor.STT") as mock_stt,
+            patch("system.core.linguist_conductor.LLM") as mock_llm,
+            patch("system.ui.display_manager.DisplayManager.print_gpu_status"),
+        ):
+            conductor: LinguistConductor = LinguistConductor()
+            mock_llm.return_value.initialize_layered_mentor = AsyncMock(return_value=True)
+            mock_stt.return_value.transcribe = AsyncMock(return_value=None)
+
+            task: asyncio.Task[None] = asyncio.create_task(conductor.run())
+            await asyncio.sleep(0.05)
+
+            conductor.audio_queue.put_nowait(np.zeros(512, dtype=np.float32))
+            await asyncio.sleep(0.1)
+            task.cancel()
+
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+            assert conductor.state == State.IDLE
+            mock_llm.return_value.think.assert_not_called()
+
+    asyncio.run(run_test())

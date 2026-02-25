@@ -2,7 +2,7 @@
 import asyncio
 import logging as log
 from asyncio import Queue
-from typing import Self, cast
+from typing import Self
 
 import numpy as np
 
@@ -31,7 +31,7 @@ class LinguistConductor:
         self.stt_engine = STT()
         self.llm_engine = LLM()
         self.audio_queue = Queue[np.ndarray]()
-        self.loop = asyncio.get_event_loop()
+        self.loop: asyncio.AbstractEventLoop | None = None
 
     def on_press(self: Self) -> None:
         if not self.state == State.IDLE:
@@ -46,10 +46,12 @@ class LinguistConductor:
         else:
             self.state = State.TRANSCRIBING
             arr_float32 = self.audio_engine.stop_capture()
-            self.loop.call_soon_threadsafe(self.audio_queue.put_nowait, arr_float32)
-            return
+            if self.loop is not None:
+                self.loop.call_soon_threadsafe(self.audio_queue.put_nowait, arr_float32)
 
     async def run(self: Self) -> None:
+        self.loop = asyncio.get_running_loop()
+
         log.info("[SYSTEM] Initialize bootstrapping SLP... ")
         is_ready = await self.llm_engine.initialize_layered_mentor()
         if not is_ready:
@@ -58,17 +60,22 @@ class LinguistConductor:
         log.info("[CONTROL] Ready! Hold 'F8' to talk.")
         DM.print_gpu_status("Status: IDLE (Mentor Calibrated)")
 
-        while True:
-            payload = await self.audio_queue.get()
-            transcription = await self.stt_engine.transcribe(payload)
+        try:
+            while True:
+                payload = await self.audio_queue.get()
+                transcription = await self.stt_engine.transcribe(payload)
 
-            if transcription:
-                self.state = State.THINKING
-                DM.print_gpu_status("LLAMA 3.1: Thinking...")
-                result = await self.llm_engine.think(transcription)
-                DM.show_user_transcription(transcription)
-                DM.show_mentor_response(cast(str, result["text"]), result)
-            else:
-                log.warning("[WARNING] Audio not understood or silence detect...")
-                DM.print_gpu_status("Status: IDLE (No Speech detected)")
+                if transcription:
+                    self.state = State.THINKING
+                    DM.print_gpu_status("LLAMA 3.1: Thinking...")
+                    DM.show_user_transcription(transcription)
+
+                    result = await self.llm_engine.think(transcription)
+                    structured_data = result["structured_data"]
+                    DM.show_mentor_response(response=structured_data, metrics=result)
+                    self.state = State.IDLE
+                else:
+                    log.warning("[WARNING] Audio not understood or silence detect...")
+                    DM.print_gpu_status("Status: IDLE (No Speech detected)")
+        finally:
             self.state = State.IDLE
