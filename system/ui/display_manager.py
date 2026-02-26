@@ -9,6 +9,7 @@ class Style:
     YELLOW = "\033[93m"
     RED = "\033[91m"
     BOLD = "\033[1m"
+    ITALIC = "\033[3m"
     RESET = "\033[0m"
 
 
@@ -20,6 +21,7 @@ class Correction(TypedDict):
 
 class MentorPayload(TypedDict):
     conversation_response: str
+    perfect_version: str
     accuracy_score: int
     corrections: list[Correction]
     pedagogical_tip: str
@@ -77,6 +79,10 @@ class DisplayManager:
         try:
             print(f"\n{Style.BOLD}{Style.CYAN}═══ MENTOR ═══{Style.RESET}")
             print(f"{Style.BOLD}{response.get('conversation_response', 'No message content.')}{Style.RESET}")
+            reconstruction = response.get("natural_reconstruction")
+            if reconstruction:
+                print(f"\n{Style.YELLOW}Natural Reconstruction:{Style.RESET}")
+                print(f'{Style.ITALIC}{Style.GREEN}"{reconstruction}"{Style.RESET}')
 
             score = response.get("accuracy_score", 0)
             level = response.get("proficiency_assessment", "N/A")
