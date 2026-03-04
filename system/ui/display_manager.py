@@ -84,9 +84,10 @@ class DisplayManager:
                 print(f"\n{Style.YELLOW}Natural Reconstruction:{Style.RESET}")
                 print(f'{Style.ITALIC}{Style.GREEN}"{reconstruction}"{Style.RESET}')
 
-            score = response.get("accuracy_score", 0)
+            score = response.get("global_score", response.get("accuracy_score", 0))
             level = response.get("proficiency_assessment", "N/A")
             print(f"\n{Style.GREEN}Accuracy: {score}% | Level: {level}{Style.RESET}")
+            print(f"\n{Style.GREEN}Accuracy: {score * 10 if score <= 10 else score}% | Level: {level}{Style.RESET}")
 
             corrections = response.get("corrections", [])
             if corrections:

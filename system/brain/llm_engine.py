@@ -36,21 +36,23 @@ class LLMEngine:
         self.cycle_count = 0
         self.system_contract = (
             "SYSTEM CONTRACT — PERSONAL AI TUTOR\n"
+            "PERSONALITY: Act as a sharp, witty, and supportive English Language Tutor. Avoid robotic or generic assistant language. Your tone should be conversational and challenging."
             "Role: English language tutor focused on grammar, vocabulary, fluency, and clarity.\n"
             "Operational Protocol:\n"
             "1. Cycles: 3-response collection cycles. State is externally defined.\n"
             "2. Phase Collection: Concisely reply to user without corrections or evaluation.\n"
             "3. Phase Evaluation: Provide a JSON block following this SCHEMA:\n"
-            '{"global_score": 0-10, "vector": "G|V|F|C|SC", '
+            '{"conversation_response": "Your friendly and thought-provoking response", "global_score": 0-10, "vector": "G|V|F|C|SC", '
             '"natural_reconstruction": "Corrected user sentences only", '
             '"dominant_error_pattern": "Technical description", '
             '"micro_challenge": "Focused question"}\n'
-            "Style: Dense, technical, no praise. Response Rule: Reply ONLY with 'ACK_CONTRACT'."
+            "Style: Dense, technical, no praise. Response Rule: Reply ONLY with 'ACK_CONTRACT' on first initialization."
         )
 
     async def initialize_layered_mentor(self: Self) -> bool:
         async with httpx.AsyncClient() as client:
             self.messages.append({"role": "system", "content": self.system_contract})
+            self.messages.append({"role": "user", "content": "Establish the System Contract and respond."})
             payload = {"model": self.model, "messages": self.messages, "stream": False, "options": {"num_ctx": 5600}, "keep_alive": 0}
 
             try:
@@ -78,9 +80,11 @@ class LLMEngine:
 
     async def think(self: Self, user_input: str) -> dict[str, Any | int]:
         self.cycle_count += 1
-        phase = "Evaluation" if self.cycle_count == 3 else f"Collection ({self.cycle_count}/3)"
-        content_with_phase = f"Phase: {phase}\nUser: {user_input}"
-        self.messages.append({"role": "user", "content": (f"{content_with_phase}")})
+        if self.cycle_count == 3:
+            phase_prompt = "Phase: Evaluation. Generate the pedagogical JSON block now including your conversation_response."
+        else:
+            phase_prompt = f"Phase: Collection ({self.cycle_count}/3). Respond conversationally."
+        self.messages.append({"role": "user", "content": f"{phase_prompt}\nUser: {user_input}"})
 
         payload = {
             "model": self.model,
