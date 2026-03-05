@@ -90,6 +90,24 @@ def test_initialize_layered_mentor_success() -> None:
         assert len(engine.messages) == 3
 
 
+def test_initialize_layered_mentor_idempotency() -> None:
+    engine = LLMEngine()
+    mock_data: dict[str, Any] = {
+        "message": {"content": "ACK_CONTRACT"},
+    }
+
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = MockResponse(mock_data, 200)
+
+        asyncio.run(engine.initialize_layered_mentor())
+        asyncio.run(engine.initialize_layered_mentor())
+
+        system_messages = [msg for msg in engine.messages if msg["role"] == "system"]
+
+        assert len(system_messages) == 1, f"[WARNING]! Was found {len(system_messages)} copies of the contract."
+        assert len(engine.messages) == 3
+
+
 def test_initialize_layered_mentor_failure() -> None:
     engine: LLMEngine = LLMEngine()
     mock_data: dict[str, Any] = {

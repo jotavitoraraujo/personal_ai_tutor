@@ -17,14 +17,7 @@ from system.utils.enum_state import State
 
 
 class LinguistConductor:
-    __slots__ = (
-        "state",
-        "audio_engine",
-        "stt_engine",
-        "llm_engine",
-        "audio_queue",
-        "loop",
-    )
+    __slots__ = ("state", "audio_engine", "stt_engine", "llm_engine", "audio_queue", "loop", "initialization")
 
     def __init__(self: Self) -> None:
         self.state = State.IDLE
@@ -33,6 +26,7 @@ class LinguistConductor:
         self.llm_engine = LLM()
         self.audio_queue = Queue[np.ndarray]()
         self.loop: asyncio.AbstractEventLoop | None = None
+        self.initialization: bool = False
 
     def on_press(self: Self) -> None:
         if not self.state == State.IDLE:
@@ -53,13 +47,16 @@ class LinguistConductor:
     async def run(self: Self) -> None:
         self.loop = asyncio.get_running_loop()
 
-        log.info("[SYSTEM] Initialize bootstrapping SLP... ")
-        is_ready = await self.llm_engine.initialize_layered_mentor()
-        if not is_ready:
-            log.critical("[CRITICAL] Catastrophic failure while injecting the Mentor Persona. Application terminated.")
-            return
-        log.info("[CONTROL] Ready! Hold 'F8' to talk.")
-        DM.print_gpu_status("Status: IDLE (Mentor Calibrated)")
+        if not self.initialization:
+            log.info("[SYSTEM] Initialize bootstrapping SLP... ")
+            is_ready = await self.llm_engine.initialize_layered_mentor()
+            if is_ready:
+                self.initialization = True
+                log.info("[SYSTEM] Mentor successfully anchored in VRAM.")
+                log.info("[CONTROL] Ready! Hold 'F8' to talk.")
+            else:
+                log.critical("[CRITICAL] Calibration failed. Aborting...")
+                return
 
         try:
             while True:

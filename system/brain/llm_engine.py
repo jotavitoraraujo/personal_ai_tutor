@@ -50,6 +50,9 @@ class LLMEngine:
         )
 
     async def initialize_layered_mentor(self: Self) -> bool:
+        if any(key["role"] == "system" for key in self.messages):
+            return True
+
         async with httpx.AsyncClient() as client:
             self.messages.append({"role": "system", "content": self.system_contract})
             self.messages.append({"role": "user", "content": "Establish the System Contract and respond."})
