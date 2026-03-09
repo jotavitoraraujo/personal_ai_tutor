@@ -7,10 +7,11 @@ import pyaudio
 
 
 class BaseAudioEngine:
-    SAMPLE_RATE: Final[int] = 16000
+    SAMPLE_RATE: Final[int] = 48000
     CHUNK_SIZE: Final[int] = 1024
-    CHANNELS: Final[int] = 1
+    CHANNELS: Final[int] = 2
     FORMAT: Final[int] = pyaudio.paInt16
+    LOGIC_DIVISOR: Final[int] = pyaudio.get_sample_size(FORMAT) * CHANNELS
 
     __slots__ = ("pa", "stream", "_frames", "_is_recording", "_thread")
 
@@ -27,9 +28,7 @@ class BaseAudioEngine:
 
         while self._is_recording:
             try:
-                data: bytes = self.stream.read(
-                    self.CHUNK_SIZE, exception_on_overflow=False
-                )
+                data: bytes = self.stream.read(self.CHUNK_SIZE, exception_on_overflow=False)
                 self._frames.append(data)
             except OSError:
                 break
@@ -57,12 +56,17 @@ class BaseAudioEngine:
             self.stream.close()
 
         combined_bytes: bytes = b"".join(self._frames)
-        remainder: int = len(combined_bytes) % 2
+        remainder: int = len(combined_bytes) % self.LOGIC_DIVISOR
 
         if remainder != 0:
             combined_bytes = combined_bytes[:-remainder]
 
         audio_int16: np.ndarray = np.frombuffer(combined_bytes, dtype=np.int16)
-        audio_float32: np.ndarray = audio_int16.astype(np.float32) / 32768.0
+
+        matrix2D_audio_int16: np.ndarray = np.reshape(audio_int16, (-1, 2))
+
+        audio_float32 = matrix2D_audio_int16.mean(axis=1).astype(np.float32) / 32768.0
+
+        audio_float32 = np.array(audio_float32[::3])
 
         return audio_float32
