@@ -1,7 +1,6 @@
 ### --- IMPORTS --- ###
 import json
 import logging as log
-import re
 from typing import Any, Self, TypedDict, cast
 
 import httpx
@@ -27,26 +26,25 @@ class OllamaResponse(TypedDict):
 
 
 class LLMEngine:
-    __slots__ = ("endpoint", "model", "messages", "cycle_count", "system_contract")
+    __slots__ = ("endpoint", "model", "messages", "json_schema", "system_contract")
 
     def __init__(self: Self) -> None:
         self.endpoint = "http://localhost:11434/api/chat"
         self.model = "llama3.1:8b-instruct-q6_K"
         self.messages: list[dict[str, str]] = []
-        self.cycle_count = 0
+        self.json_schema = {"type": "object", "properties": {"speech": {"type": "string"}, "template": {"type": "string"}}, "required": ["speech", "template"]}
         self.system_contract = (
-            "SYSTEM CONTRACT — PERSONAL AI TUTOR\n"
-            "PERSONALITY: Act as a sharp, witty, and supportive English Language Tutor. Avoid robotic or generic assistant language. Your tone should be conversational and challenging."
-            "Role: English language tutor focused on grammar, vocabulary, fluency, and clarity.\n"
-            "Operational Protocol:\n"
-            "1. Cycles: 3-response collection cycles. State is externally defined.\n"
-            "2. Phase Collection: Concisely reply to user without corrections or evaluation.\n"
-            "3. Phase Evaluation: Provide a JSON block following this SCHEMA:\n"
-            '{"conversation_response": "Your friendly and thought-provoking response", "global_score": 0-10, "vector": "G|V|F|C|SC", '
-            '"natural_reconstruction": "Corrected user sentences only", '
-            '"dominant_error_pattern": "Technical description", '
-            '"micro_challenge": "Focused question"}\n'
-            "Style: Dense, technical, no praise. Response Rule: Reply ONLY with 'ACK_CONTRACT' on first initialization."
+            "ROLE: Native English Tutor. USER: Brazilian beginner, analytical learner. "
+            "You understand Portuguese perfectly but MUST generate text ONLY in English.\n"
+            "PROTOCOL: When user uses Portuguese or makes errors:\n"
+            "1. Isolate the target word.\n"
+            "2. Teach its direct translation and ONE primary context.\n"
+            "3. Issue a short translation challenge using the new word.\n"
+            "OUTPUT RULES: Strictly JSON matching the schema.\n"
+            "- 'template': ONLY the exact expected answer to the challenge. No theory, no extra words.\n"
+            "- 'speech': Micro-lesson + challenge. Max 3 sentences. Direct, strict, no filler.\n"
+            "CONSTRAINTS: NEVER speak Portuguese. NO praise. "
+            "INIT: If user says 'Establish the System Contract...', output 'ACK_CONTRACT' inside the 'speech' key."
         )
 
     async def initialize_layered_mentor(self: Self) -> bool:
@@ -56,21 +54,22 @@ class LLMEngine:
         async with httpx.AsyncClient() as client:
             self.messages.append({"role": "system", "content": self.system_contract})
             self.messages.append({"role": "user", "content": "Establish the System Contract and respond."})
-            payload = {"model": self.model, "messages": self.messages, "stream": False, "options": {"num_ctx": 5600}, "keep_alive": 0}
+            payload = {"model": self.model, "messages": self.messages, "stream": False, "format": self.json_schema, "options": {"num_ctx": 5600}, "keep_alive": 0}
 
             try:
                 response = await client.post(self.endpoint, json=payload, timeout=90.0)
                 response.raise_for_status()
                 data = cast(OllamaResponse, response.json())
-                bot_message: str = data["message"]["content"]
+                raw_string: str = data["message"]["content"]
+                json_load: dict[str, str] = json.loads(raw_string)
 
-                if "ACK_CONTRACT" not in bot_message:
-                    log.error(f"[CRITICAL] Contract Reject. Response: {bot_message}")
+                if json_load["speech"] != "ACK_CONTRACT":
+                    log.error(f"[CRITICAL] Contract Reject. Response: {raw_string}")
                     self.messages.clear()
                     return False
 
                 log.info("[SYSTEM] System Contract Validated and Prefilled.")
-                self.messages.append({"role": "assistant", "content": bot_message})
+                self.messages.append({"role": "assistant", "content": raw_string})
                 return True
 
             except Exception as e:
@@ -78,21 +77,21 @@ class LLMEngine:
                 self.messages.clear()
                 return False
 
-    def _generate_fallback(self: Self, text: str) -> dict[str, str | int | list[None]]:
-        return {"conversation_response": text, "global_score": 0, "vector": "N/A", "natural_reconstruction": "Reconstruction failed.", "dominant_error_pattern": "JSON Parse Error"}
+    def _generate_fallback(self: Self, raw_string: str) -> dict[str, str]:
+        return {"speech": f"[WARNING] The model not returned none content to variable raw_string. Result: {raw_string}", "template": "void"}
 
-    async def think(self: Self, user_input: str) -> dict[str, Any | int]:
-        self.cycle_count += 1
-        if self.cycle_count == 3:
-            phase_prompt = "Phase: Evaluation. Generate the pedagogical JSON block now including your conversation_response."
-        else:
-            phase_prompt = f"Phase: Collection ({self.cycle_count}/3). Respond conversationally."
-        self.messages.append({"role": "user", "content": f"{phase_prompt}\nUser: {user_input}"})
+    def _remove_last_input(self: Self, messages: list[dict[str, Any]]) -> None:
+        del messages[-1]
+        return
+
+    async def think(self: Self, user_input: str) -> dict[str, Any]:
+        self.messages.append({"role": "user", "content": user_input})
 
         payload = {
             "model": self.model,
             "messages": self.messages,
             "stream": False,
+            "format": self.json_schema,
             "options": {"num_ctx": 5600},
             "keep_alive": 0,
         }
@@ -102,36 +101,36 @@ class LLMEngine:
                 response = await client.post(self.endpoint, json=payload, timeout=90.0)
                 if response.status_code == 200:
                     data = cast(OllamaResponse, response.json())
-                    raw_content: str = data["message"]["content"]
-                    if self.cycle_count == 3:
-                        try:
-                            json_match = re.search(r"\{.*}", raw_content, re.DOTALL)
-                            if json_match:
-                                parsed_data = cast(dict[str, Any], json.loads(json_match.group()))
-                            else:
-                                parsed_data = self._generate_fallback(raw_content)
-                            self.cycle_count = 0
-                        except (json.JSONDecodeError, AttributeError):
-                            parsed_data = self._generate_fallback(raw_content)
-                    else:
-                        parsed_data = {"conversation_response": raw_content}
+                    raw_string: str = data["message"]["content"]
 
-                    self.messages.append({"role": "assistant", "content": raw_content})
+                    try:
+                        if raw_string:
+                            json_schema_done = cast(dict[str, str], json.loads(raw_string))
+                            self.messages.append({"role": "assistant", "content": raw_string})
+                        else:
+                            self._remove_last_input(self.messages)
+                            json_schema_done = self._generate_fallback(raw_string)
+
+                    except (json.JSONDecodeError, AttributeError):
+                        self._remove_last_input(self.messages)
+                        json_schema_done = self._generate_fallback(raw_string)
 
                     metrics = {
-                        "structured_data": parsed_data,
+                        "structured_data": json_schema_done,
                         "prompt_tokens": data.get("prompt_eval_count", 0),
                         "output_tokens": data.get("eval_count", 0),
                         "total_time_ms": data.get("total_duration", 0) // 1_000_000,
                     }
                     return metrics
+
                 else:
                     raise Exception(f"Server returned ::: Status Code: {response.status_code}")
+
             except Exception as e:
                 log.error(f"[ERROR] Type/Name Error: {type(e).__name__}")
-                log.error(f"[ERROR] Cycle {self.cycle_count} failed: {str(e)}")
+                self._remove_last_input(self.messages)
                 return {
-                    "structured_data": self._generate_fallback("I'm sorry, my brain is cooling down."),
+                    "structured_data": self._generate_fallback("RAW STRING EMPTY"),
                     "prompt_tokens": 0,
                     "output_tokens": 0,
                 }
