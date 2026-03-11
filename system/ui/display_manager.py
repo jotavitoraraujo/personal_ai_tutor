@@ -74,7 +74,8 @@ class DisplayManager:
             print(f"\n{Style.YELLOW}═══ METRICS ═══{Style.RESET}")
             print(f"{Style.BOLD}Prompt Tokens: {metrics_llm['prompt_tokens']}{Style.RESET}")
             print(f"{Style.BOLD}Output Tokens: {metrics_llm['output_tokens']}{Style.RESET}")
-            print(f"{Style.BOLD}Total Time in Seconds: {metrics_llm['total_time_ms']}{Style.RESET}")
+            print(f"{Style.BOLD}Total Tokens: {metrics_llm['total_tokens']}{Style.RESET}")
+            print(f"{Style.BOLD}Latency: {metrics_llm['latency']} seconds.{Style.RESET}")
             print(f"{Style.YELLOW}══════════════════{Style.RESET}")
             print(f"\n{Style.GREEN}[CONTROL]{Style.RESET} {Style.BOLD}Hold 'F8' to talk.{Style.RESET}")
 

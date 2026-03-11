@@ -6,13 +6,15 @@ from pynput import keyboard
 
 from system.core.linguist_conductor import LinguistConductor
 from system.settings_log import log_system
+from system.utils.config import Config
 
 
 async def main() -> None:
     log_system()
     log.info("[SYSTEM] Initializing Linguist AI Tutor...")
 
-    conductor = LinguistConductor()
+    config = Config()
+    conductor = LinguistConductor(config)
 
     trigger_key = keyboard.Key.f8
 

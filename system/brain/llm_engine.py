@@ -1,50 +1,74 @@
 ### --- IMPORTS --- ###
 import json
 import logging as log
+import time
 from typing import Any, Self, TypedDict, cast
 
 import httpx
 
+from system.utils.config import Config
+
 ###
 
 
+class Metrics(TypedDict):
+    "metrics to control the context limit"
+
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+
+
 class Message(TypedDict):
+    "dictionary that have the role and content of the response of model"
+
     role: str
     content: str
+    refusal: str
 
 
-class OllamaResponse(TypedDict):
-    model: str
-    created_at: str
+class Responses(TypedDict):
+    "a list of dictionarys"
+
+    index: int
     message: Message
-    done: bool
-    ### METRICS ###
-    total_duration: int
-    prompt_eval_count: int
-    eval_count: int
-    eval_duration: int
+    logprobs: None
+    finish_reason: str
+
+
+class PayloadResponse(TypedDict):
+    "structure of the dictionary returned of the openAI api"
+
+    id: str
+    object: str
+    created: int
+    model: str
+    system_fingerprint: str
+    choices: list[Responses]
+    usage: Metrics
 
 
 class LLMEngine:
-    __slots__ = ("endpoint", "model", "messages", "json_schema", "system_contract")
+    __slots__ = ("config", "endpoint", "model", "messages", "json_object", "system_contract")
 
-    def __init__(self: Self) -> None:
-        self.endpoint = "http://localhost:11434/api/chat"
-        self.model = "llama3.1:8b-instruct-q6_K"
+    def __init__(self: Self, config: Config) -> None:
+        self.config = config
+        self.endpoint = config.endpoint
+        self.model = config.model
         self.messages: list[dict[str, str]] = []
-        self.json_schema = {"type": "object", "properties": {"speech": {"type": "string"}, "template": {"type": "string"}}, "required": ["speech", "template"]}
+        self.json_object = {"type": "json_object"}
         self.system_contract = (
-            "ROLE: Native English Tutor. USER: Brazilian beginner, analytical learner. "
-            "You understand Portuguese perfectly but MUST generate text ONLY in English.\n"
-            "PROTOCOL: When user uses Portuguese or makes errors:\n"
-            "1. Isolate the target word.\n"
-            "2. Teach its direct translation and ONE primary context.\n"
-            "3. Issue a short translation challenge using the new word.\n"
-            "OUTPUT RULES: Strictly JSON matching the schema.\n"
-            "- 'template': ONLY the exact expected answer to the challenge. No theory, no extra words.\n"
-            "- 'speech': Micro-lesson + challenge. Max 3 sentences. Direct, strict, no filler.\n"
-            "CONSTRAINTS: NEVER speak Portuguese. NO praise. "
-            "INIT: If user says 'Establish the System Contract...', output 'ACK_CONTRACT' inside the 'speech' key."
+            """ROLE: Expert English Tutor. USER: João (Brazilian, intermediate reader, needs pattern automation and connected speech practice)
+            "You understand Portuguese but MUST output strictly in English.\n"""
+            "TONE: Conversational, natural, and engaging. FATAL RULE: Under no circumstances act like a formal dictionary or a textbook. Speak like a real human in a voice call.\n"
+            "PROTOCOL:\n"
+            "1. FEEDBACK: If João attempted a translation, briefly evaluate it. Correct sentence construction contextually.\n"
+            "2. MICRO-LESSON: Teach a natural phrase pattern, contraction, or connected speech. Focus on chunks, not isolated words.\n"
+            "3. CHALLENGE: End with a short translation challenge for him to practice the new pattern.\n"
+            "OUTPUT RULES: Strictly JSON.\n"
+            "- 'template': ONLY the exact expected English answer for your NEW challenge. Zero theory.\n"
+            "- 'speech': Your feedback + micro-lesson + challenge. Max 3 sentences. Keep it punchy for TTS audio.\n"
+            "INIT: If prompt is 'Establish the System Contract...', output 'ACK_CONTRACT' inside 'speech'."
         )
 
     async def initialize_layered_mentor(self: Self) -> bool:
@@ -54,13 +78,17 @@ class LLMEngine:
         async with httpx.AsyncClient() as client:
             self.messages.append({"role": "system", "content": self.system_contract})
             self.messages.append({"role": "user", "content": "Establish the System Contract and respond."})
-            payload = {"model": self.model, "messages": self.messages, "stream": False, "format": self.json_schema, "options": {"num_ctx": 5600}, "keep_alive": 0}
+            payload = {"model": self.model, "messages": self.messages, "max_tokens": 500, "temperature": 0.7, "response_format": self.json_object}
 
             try:
-                response = await client.post(self.endpoint, json=payload, timeout=90.0)
+                if not self.config.header:
+                    response = await client.post(url=self.endpoint, json=payload, timeout=90.0)
+                else:
+                    response = await client.post(url=self.endpoint, json=payload, headers=self.config.header, timeout=90.0)
+
                 response.raise_for_status()
-                data = cast(OllamaResponse, response.json())
-                raw_string: str = data["message"]["content"]
+                data = cast(PayloadResponse, response.json())
+                raw_string: str = data["choices"][0]["message"]["content"]
                 json_load: dict[str, str] = json.loads(raw_string)
 
                 if json_load["speech"] != "ACK_CONTRACT":
@@ -85,23 +113,20 @@ class LLMEngine:
         return
 
     async def think(self: Self, user_input: str) -> dict[str, Any]:
+        start_time = time.time()
         self.messages.append({"role": "user", "content": user_input})
-
-        payload = {
-            "model": self.model,
-            "messages": self.messages,
-            "stream": False,
-            "format": self.json_schema,
-            "options": {"num_ctx": 5600},
-            "keep_alive": 0,
-        }
+        payload = {"model": self.model, "messages": self.messages, "max_tokens": 500, "temperature": 0.7, "response_format": self.json_object}
 
         async with httpx.AsyncClient() as client:
             try:
-                response = await client.post(self.endpoint, json=payload, timeout=90.0)
+                if not self.config.header:
+                    response = await client.post(url=self.endpoint, json=payload, timeout=90.0)
+                else:
+                    response = await client.post(url=self.endpoint, json=payload, headers=self.config.header, timeout=90.0)
+
                 if response.status_code == 200:
-                    data = cast(OllamaResponse, response.json())
-                    raw_string: str = data["message"]["content"]
+                    data = cast(PayloadResponse, response.json())
+                    raw_string: str = data["choices"][0]["message"]["content"]
 
                     try:
                         if raw_string:
@@ -115,11 +140,16 @@ class LLMEngine:
                         self._remove_last_input(self.messages)
                         json_schema_done = self._generate_fallback(raw_string)
 
+                    end_time = time.time()
+                    delta = end_time - start_time
+                    latency = round(delta, 2)
+
                     metrics = {
                         "structured_data": json_schema_done,
-                        "prompt_tokens": data.get("prompt_eval_count", 0),
-                        "output_tokens": data.get("eval_count", 0),
-                        "total_time_ms": data.get("total_duration", 0) // 1_000_000,
+                        "prompt_tokens": data["usage"].get("prompt_tokens", 0),
+                        "output_tokens": data["usage"].get("completion_tokens", 0),
+                        "total_tokens": data["usage"].get("total_tokens", 0),
+                        "latency": latency,
                     }
                     return metrics
 
@@ -129,8 +159,4 @@ class LLMEngine:
             except Exception as e:
                 log.error(f"[ERROR] Type/Name Error: {type(e).__name__}")
                 self._remove_last_input(self.messages)
-                return {
-                    "structured_data": self._generate_fallback("RAW STRING EMPTY"),
-                    "prompt_tokens": 0,
-                    "output_tokens": 0,
-                }
+                return {"structured_data": self._generate_fallback("RAW STRING EMPTY"), "prompt_tokens": 0, "output_tokens": 0, "total_tokens": 0, "latency": 0.0}

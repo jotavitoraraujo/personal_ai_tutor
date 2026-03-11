@@ -1,6 +1,6 @@
 import asyncio
 from typing import Any, Self
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import numpy as np
 
@@ -11,10 +11,11 @@ from system.utils.enum_state import State
 class MockResponse:
     def __init__(self: Self) -> None:
         self.structured_result: dict[str, Any] = {
-            "structured_data": {"conversation_response": "Test response", "accuracy_score": 100, "corrections": [], "pedagogical_tip": "None", "proficiency_assessment": "A1"},
+            "structured_data": {"speech": "Test response", "template": "Test template"},
             "prompt_tokens": 10,
             "output_tokens": 10,
-            "total_time_ms": 100,
+            "total_tokens": 20,
+            "latency": 1.5,
         }
 
 
@@ -28,7 +29,8 @@ def test_conductor_success_flow() -> None:
             patch("system.ui.display_manager.DisplayManager.print_gpu_status"),
             patch("system.ui.display_manager.DisplayManager.show_user_transcription"),
         ):
-            conductor: LinguistConductor = LinguistConductor()
+            mock_config = Mock()
+            conductor: LinguistConductor = LinguistConductor(mock_config)
             mock_llm.return_value.initialize_layered_mentor = AsyncMock(return_value=True)
             mock_stt.return_value.transcribe = AsyncMock(return_value="Hello world")
             mock_llm.return_value.think = AsyncMock(return_value=MockResponse().structured_result)
@@ -61,7 +63,8 @@ def test_conductor_transcription_silence() -> None:
             patch("system.core.linguist_conductor.LLM") as mock_llm,
             patch("system.ui.display_manager.DisplayManager.print_gpu_status"),
         ):
-            conductor: LinguistConductor = LinguistConductor()
+            mock_config = Mock()
+            conductor: LinguistConductor = LinguistConductor(mock_config)
             mock_llm.return_value.initialize_layered_mentor = AsyncMock(return_value=True)
             mock_stt.return_value.transcribe = AsyncMock(return_value=None)
 

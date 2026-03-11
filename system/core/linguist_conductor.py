@@ -13,17 +13,19 @@ from system.brain.llm_engine import LLMEngine as LLM
 from system.brain.stt_engine import STTEngine as STT
 from system.ui.display_manager import DisplayManager as DM
 from system.ui.display_manager import MentorPayload
+from system.utils.config import Config
 from system.utils.enum_state import State
 
 
 class LinguistConductor:
-    __slots__ = ("state", "audio_engine", "stt_engine", "llm_engine", "audio_queue", "loop", "initialization")
+    __slots__ = ("config", "state", "audio_engine", "stt_engine", "llm_engine", "audio_queue", "loop", "initialization")
 
-    def __init__(self: Self) -> None:
+    def __init__(self: Self, config: Config) -> None:
+        self.config = config
         self.state = State.IDLE
         self.audio_engine = BAE()
         self.stt_engine = STT()
-        self.llm_engine = LLM()
+        self.llm_engine = LLM(self.config)
         self.audio_queue = Queue[np.ndarray]()
         self.loop: asyncio.AbstractEventLoop | None = None
         self.initialization: bool = False

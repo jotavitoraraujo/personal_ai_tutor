@@ -1,6 +1,6 @@
 import asyncio
 from typing import Any
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import numpy as np
 
@@ -26,7 +26,8 @@ def test_system_integration_contract() -> None:
         mock_llm.return_value.think = AsyncMock(return_value=structured_payload)
 
         async def run_integration() -> None:
-            conductor: LinguistConductor = LinguistConductor()
+            mock_config = Mock()
+            conductor: LinguistConductor = LinguistConductor(mock_config)
             conductor.audio_queue.put_nowait(np.zeros(1024, dtype=np.float32))
 
             task: asyncio.Task[None] = asyncio.create_task(conductor.run())
