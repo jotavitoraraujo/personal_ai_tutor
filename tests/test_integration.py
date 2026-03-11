@@ -18,7 +18,7 @@ def test_system_integration_contract() -> None:
         mock_llm.return_value.initialize_layered_mentor = AsyncMock(return_value=True)
 
         structured_payload: dict[str, Any] = {
-            "structured_data": {"conversation_response": "Integration Success", "accuracy_score": 95, "corrections": [], "pedagogical_tip": "Perfect", "proficiency_assessment": "B1"},
+            "structured_data": {"speech": "Integration Success", "template": "Template Sucess"},
             "prompt_tokens": 50,
             "output_tokens": 50,
             "total_time_ms": 500,
@@ -33,6 +33,6 @@ def test_system_integration_contract() -> None:
             await asyncio.sleep(0.1)
             task.cancel()
 
-            mock_dm.show_mentor_response.assert_called_with(response=structured_payload["structured_data"], metrics=structured_payload)
+            mock_dm.show_mentor_response.assert_called_with(structured_payload["structured_data"], structured_payload)
 
         asyncio.run(run_integration())

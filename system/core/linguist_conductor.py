@@ -68,9 +68,9 @@ class LinguistConductor:
                     DM.print_gpu_status("LLAMA 3.1: Thinking...")
                     DM.show_user_transcription(transcription)
 
-                    result = await self.llm_engine.think(transcription)
-                    structured_data = cast(MentorPayload, result["structured_data"])
-                    DM.show_mentor_response(response=structured_data, metrics=result)
+                    metrics_llm = await self.llm_engine.think(transcription)
+                    json_schema_llm = cast(MentorPayload, metrics_llm["structured_data"])
+                    DM.show_mentor_response(json_schema_llm, metrics_llm)
                     self.state = State.IDLE
                 else:
                     log.warning("[WARNING] Audio not understood or silence detect...")

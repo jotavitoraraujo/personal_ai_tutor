@@ -13,19 +13,9 @@ class Style:
     RESET = "\033[0m"
 
 
-class Correction(TypedDict):
-    original: str
-    improved: str
-    reason: str
-
-
 class MentorPayload(TypedDict):
-    conversation_response: str
-    perfect_version: str
-    accuracy_score: int
-    corrections: list[Correction]
-    pedagogical_tip: str
-    proficiency_assessment: str
+    speech: str
+    template: str
 
 
 class GPUTelemetry(TypedDict):
@@ -75,34 +65,17 @@ class DisplayManager:
             print(f"{Style.YELLOW}[GPU]{Style.RESET}{Style.BOLD}{gpu['name']}{Style.RESET}{gpu['used']:.1f}/{gpu['total']:.1f} GB | {bar} | {Style.CYAN}{action_msg}{Style.RESET}")
 
     @staticmethod
-    def show_mentor_response(response: MentorPayload, metrics: dict[str, Any]) -> None:
+    def show_mentor_response(json_schema_llm: MentorPayload, metrics_llm: dict[str, Any]) -> None:
         try:
             print(f"\n{Style.BOLD}{Style.CYAN}═══ MENTOR ═══{Style.RESET}")
-            print(f"{Style.BOLD}{response.get('conversation_response', 'No message content.')}{Style.RESET}")
-            reconstruction = response.get("natural_reconstruction")
-            if reconstruction:
-                print(f"\n{Style.YELLOW}Natural Reconstruction:{Style.RESET}")
-                print(f'{Style.ITALIC}{Style.GREEN}"{reconstruction}"{Style.RESET}')
-
-            score = response.get("global_score", response.get("accuracy_score", 0))
-            level = response.get("proficiency_assessment", "N/A")
-            print(f"\n{Style.GREEN}Accuracy: {score}% | Level: {level}{Style.RESET}")
-            print(f"\n{Style.GREEN}Accuracy: {score * 10 if score <= 10 else score}% | Level: {level}{Style.RESET}")
-
-            corrections = response.get("corrections", [])
-            if corrections:
-                print(f"\n{Style.YELLOW}CORRECTIONS:{Style.RESET}")
-                for corr in corrections:
-                    print(f"  • {Style.RED}{corr.get('original')}{Style.RESET} -> {Style.GREEN}{corr.get('improved')}{Style.RESET}")
-                    print(f"    {Style.CYAN}Reason: {corr.get('reason')}{Style.RESET}")
-
-            if response.get("pedagogical_tip"):
-                print(f"\n{Style.BOLD}Tip:{Style.RESET} {response.get('pedagogical_tip')}")
-
-            print(f"{Style.CYAN}══════════════{Style.RESET}")
-
-            print(f"{Style.YELLOW}[METRICS]{Style.RESET} Prompt: {metrics.get('prompt_tokens', 0)} tks | Output: {metrics.get('output_tokens', 0)} tks | Latency: {metrics.get('total_time_ms', 0)}ms")
-
+            print(f"{Style.BOLD}{json_schema_llm['speech']}{Style.RESET}")
+            print(f"{Style.ITALIC}{Style.BOLD}Template: {json_schema_llm['template']}{Style.RESET}")
+            print(f"{Style.CYAN}══════════════════{Style.RESET}")
+            print(f"\n{Style.YELLOW}═══ METRICS ═══{Style.RESET}")
+            print(f"{Style.BOLD}Prompt Tokens: {metrics_llm['prompt_tokens']}{Style.RESET}")
+            print(f"{Style.BOLD}Output Tokens: {metrics_llm['output_tokens']}{Style.RESET}")
+            print(f"{Style.BOLD}Total Time in Seconds: {metrics_llm['total_time_ms']}{Style.RESET}")
+            print(f"{Style.YELLOW}══════════════════{Style.RESET}")
             print(f"\n{Style.GREEN}[CONTROL]{Style.RESET} {Style.BOLD}Hold 'F8' to talk.{Style.RESET}")
 
         except Exception as e:
@@ -110,7 +83,7 @@ class DisplayManager:
             print(f"\n{Style.RED}[SYSTEM ERROR] Could not render full mentor card.{Style.RESET}")
 
     @staticmethod
-    def show_user_transcription(text: str) -> None:
+    def show_user_transcription(transcription: str) -> None:
         print(f"\n{Style.BOLD}{Style.RED}═══ USER ═══{Style.RESET}")
-        print(f"{Style.BOLD}{text}{Style.RESET}")
+        print(f"{Style.BOLD}{transcription}{Style.RESET}")
         print(f"{Style.RED}════════════{Style.RESET}")
