@@ -1,3 +1,5 @@
+> Strategic Refactoring Notice (March/2026): This project is undergoing an active architectural transition. The original engine, written in Python and focused on local hardware inference, is being discontinued. The architecture is being entirely rewritten in C# (.NET), transforming into an asynchronous microservice connected to the cloud (Groq API). This transition reflects a strategic decision to focus on low-level software engineering, strict typing, memory management, and alignment with enterprise market architectural patterns.
+
 # Linguist-Engine: High-Precision Local Multimodal AI Tutor
 
 **Linguist-Engine** is a specialized local-first AI system designed for advanced language acquisition through high-fidelity speech-to-text and large language model orchestration. Unlike consumer-grade applications that prioritize response speed, this system is architected on the **Latency-Precision Paradigm**, utilizing high-parameter models and intensive quantization to ensure near-absolute linguistic accuracy on consumer-grade hardware.
